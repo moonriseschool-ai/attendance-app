@@ -15,6 +15,9 @@
     <!-- Inline Data-URI Web Manifest -->
     <link rel="manifest" href='data:application/manifest+json,{"name":"학생 출석 체크 시스템","short_name":"출석체크","start_url":".","display":"standalone","background_color":"%23f8fafc","theme_color":"%232563eb","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/%3E%3Ctext x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22%3E📋%3C/text%3E%3C/svg%3E","sizes":"192x192 512x512","type":"image/svg+xml"}]}'>
 
+    <!-- SheetJS (엑셀 파일 읽기 라이브러리) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
         :root {
             --primary-color: #2563eb;
@@ -33,7 +36,7 @@
         }
 
         .container {
-            max-width: 950px;
+            max-width: 1000px;
             margin: 0 auto;
         }
 
@@ -67,18 +70,18 @@
             align-items: center;
             gap: 8px;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
         }
 
         input[type="text"], input[type="time"], input[type="url"] {
             padding: 8px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
         }
 
-        input[type="text"] { width: 120px; }
-        input[type="url"] { width: 220px; }
+        input[type="text"] { width: 110px; }
+        input[type="url"] { width: 180px; }
 
         .button-group {
             display: flex;
@@ -87,13 +90,13 @@
         }
 
         .btn {
-            padding: 9px 14px;
+            padding: 9px 13px;
             border: none;
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
         }
 
         .btn-install { background-color: #0284c7; color: white; display: none; }
@@ -104,6 +107,12 @@
 
         .btn-sheets { background-color: #16a34a; color: white; }
         .btn-sheets:hover { background-color: #15803d; }
+
+        .btn-view-sheet { background-color: #0891b2; color: white; }
+        .btn-view-sheet:hover { background-color: #0e7490; }
+
+        .btn-sync { background-color: #d97706; color: white; }
+        .btn-sync:hover { background-color: #b45309; }
 
         .btn-reset { background-color: #64748b; color: white; }
         .btn-reset:hover { background-color: #475569; }
@@ -195,8 +204,8 @@
             padding: 24px;
             border-radius: 16px;
             width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
+            max-width: 650px;
+            max-height: 85vh;
             overflow-y: auto;
         }
 
@@ -205,6 +214,19 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
+        }
+
+        .import-box {
+            background-color: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+
+        .import-box h4 {
+            margin: 0 0 8px 0;
+            color: #334155;
         }
 
         .modal-grid {
@@ -249,14 +271,20 @@
         </div>
 
         <div class="setting-group">
-            <label for="sheetUrl">📊 Sheets URL:</label>
-            <input type="url" id="sheetUrl" placeholder="웹 앱 URL 입력">
+            <label for="sheetUrl">📊 연동 URL:</label>
+            <input type="url" id="sheetUrl" placeholder="Apps Script URL">
+        </div>
+
+        <div class="setting-group">
+            <label for="sheetDocUrl">📄 시트 URL:</label>
+            <input type="url" id="sheetDocUrl" placeholder="docs.google.com/... 문서 주소">
         </div>
 
         <div class="button-group">
             <button class="btn btn-install" id="pwaInstallBtn" onclick="installPWA()">📲 앱 설치하기</button>
             <button class="btn btn-manage" onclick="openModal()">👤 명단 관리</button>
             <button class="btn btn-sheets" onclick="sendToGoogleSheets()">Sheets 전송</button>
+            <button class="btn btn-view-sheet" onclick="openGoogleSheet()">📄 시트 보기</button>
             <button class="btn btn-reset" onclick="resetAll()">초기화</button>
         </div>
     </div>
@@ -271,7 +299,31 @@
             <h2 style="margin:0; font-size:1.3rem;">👤 학생 이름 매핑 등록</h2>
             <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
-        <p style="font-size:0.85rem; color:#64748b; margin-top:0;">번호별 학생 이름을 입력해 주세요. (18번 제외)</p>
+
+        <!-- 일괄 불러오기 구역 -->
+        <div class="import-box">
+            <h4>📊 학생 명단 일괄 불러오기</h4>
+            
+            <div style="margin-bottom:12px;">
+                <button class="btn btn-sync" onclick="syncFromGoogleSheets(true)">🔄 구글 시트에서 최신 명단 동기화</button>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px;">
+                <label for="excelFile" style="font-weight:600; cursor:pointer; color:#2563eb;">📂 엑셀 파일 선택 (.xlsx, .csv):</label>
+                <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="importFromExcelFile(event)">
+            </div>
+            
+            <details style="margin-top:6px;">
+                <summary style="cursor:pointer; font-weight:600; color:#475569;">📋 엑셀 내용 직접 복사/붙여넣기</summary>
+                <textarea id="pasteArea" rows="3" style="width:100%; box-sizing:border-box; padding:6px; font-size:0.8rem; margin-top:6px;" placeholder="예시:
+1 홍길동
+2 김철수
+3 이영희"></textarea>
+                <button class="btn btn-manage" style="margin-top:6px; padding:6px 10px; font-size:0.8rem;" onclick="importFromPasteText()">텍스트 적용하기</button>
+            </details>
+        </div>
+
+        <p style="font-size:0.85rem; color:#64748b; margin-top:0;">번호별 학생 이름을 직접 수정할 수도 있습니다. (18번 제외)</p>
         
         <div class="modal-grid" id="modalInputGrid"></div>
 
@@ -283,12 +335,19 @@
 
 <script>
     // 1번부터 20번까지 (18번 제외)
-    const students = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20];
+    const students = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20];
     const attendanceState = {};
     let studentNames = {};
 
-    // 로컬 스토리지 데이터 불러오기
-    function loadSavedSettings() {
+    // 초기 출석 상태 할당
+    students.forEach(id => {
+        attendanceState[id] = { checked: false, time: null, isLate: false };
+    });
+
+    const gridEl = document.getElementById('studentGrid');
+
+    // 로컬 스토리지 데이터 불러오기 및 구글 시트 명단 자동 동기화
+    async function loadSavedSettings() {
         const savedClassName = localStorage.getItem('className');
         if (savedClassName) {
             document.getElementById('className').value = savedClassName;
@@ -305,20 +364,61 @@
             document.getElementById('sheetUrl').value = savedUrl;
         }
 
+        const savedDocUrl = localStorage.getItem('sheetDocUrl');
+        if (savedDocUrl) {
+            document.getElementById('sheetDocUrl').value = savedDocUrl;
+        }
+
         const savedNames = localStorage.getItem('studentNames');
         if (savedNames) {
             studentNames = JSON.parse(savedNames);
         } else {
             students.forEach(id => { studentNames[id] = `학생 ${id}`; });
         }
+
+        renderGrid();
+
+        // 앱 실행 시 구글 시트 URL이 있으면 배경에서 최신 명단 자동 불러오기
+        if (savedUrl) {
+            await syncFromGoogleSheets(false);
+        }
     }
 
-    // 초기 출석 상태 할당
-    students.forEach(id => {
-        attendanceState[id] = { checked: false, time: null, isLate: false };
-    });
+    // 구글 시트 명단 동기화 함수 (isManual = 수동 버튼 클릭 여부)
+    async function syncFromGoogleSheets(isManual = false) {
+        const url = document.getElementById('sheetUrl').value.trim();
+        if (!url) {
+            if (isManual) alert("상단 '📊 연동 URL' 칸에 Apps Script URL을 먼저 입력해 주세요.");
+            return;
+        }
 
-    const gridEl = document.getElementById('studentGrid');
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (Array.isArray(data) && data.length > 0) {
+                let count = 0;
+                data.forEach(item => {
+                    if (students.includes(item.id) && item.name) {
+                        studentNames[item.id] = item.name;
+                        count++;
+                    }
+                });
+                
+                localStorage.setItem('studentNames', JSON.stringify(studentNames));
+                renderGrid();
+                
+                if (isManual) {
+                    populateModalGrid();
+                    alert(`구글 시트에서 ${count}명의 학생 명단을 동기화했습니다!`);
+                }
+            } else if (isManual) {
+                alert("구글 시트에서 명단 데이터를 읽을 수 없거나 데이터가 비어 있습니다.");
+            }
+        } catch (error) {
+            if (isManual) alert("명단 동기화 중 오류가 발생했습니다: " + error.message);
+        }
+    }
 
     function renderGrid() {
         gridEl.innerHTML = '';
@@ -411,12 +511,21 @@
         localStorage.setItem('sheetUrl', this.value.trim());
     });
 
+    document.getElementById('sheetDocUrl').addEventListener('input', function() {
+        localStorage.setItem('sheetDocUrl', this.value.trim());
+    });
+
     function updateHeaderTitle(className) {
         const el = document.getElementById('headerClassTitle');
         el.textContent = className ? `${className} 출석 현황 (1번~20번, 18번 제외)` : '학급 미지정 (1번~20번, 18번 제외)';
     }
 
     function openModal() {
+        populateModalGrid();
+        document.getElementById('nameModal').style.display = 'flex';
+    }
+
+    function populateModalGrid() {
         const container = document.getElementById('modalInputGrid');
         container.innerHTML = '';
         
@@ -429,12 +538,70 @@
             `;
             container.appendChild(div);
         });
-
-        document.getElementById('nameModal').style.display = 'flex';
     }
 
     function closeModal() {
         document.getElementById('nameModal').style.display = 'none';
+    }
+
+    function importFromExcelFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                let count = 0;
+                rows.forEach(row => {
+                    if (row && row.length >= 2) {
+                        const num = parseInt(row[0], 10);
+                        const name = String(row[1]).trim();
+                        if (!isNaN(num) && students.includes(num) && name) {
+                            studentNames[num] = name;
+                            count++;
+                        }
+                    }
+                });
+
+                populateModalGrid();
+                alert(`${count}명의 학생 이름이 엑셀에서 불러와졌습니다!\n'저장하기' 버튼을 누르면 적용됩니다.`);
+            } catch (err) {
+                alert("엑셀 파일을 읽는 중 오류가 발생했습니다: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function importFromPasteText() {
+        const text = document.getElementById('pasteArea').value.trim();
+        if (!text) {
+            alert("붙여넣은 텍스트가 없습니다.");
+            return;
+        }
+
+        const lines = text.split('\n');
+        let count = 0;
+
+        lines.forEach(line => {
+            const parts = line.split(/[\t,]+/).map(s => s.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+                const num = parseInt(parts[0], 10);
+                const name = parts[1];
+                if (!isNaN(num) && students.includes(num) && name) {
+                    studentNames[num] = name;
+                    count++;
+                }
+            }
+        });
+
+        populateModalGrid();
+        alert(`${count}명의 학생 명단이 적용되었습니다!\n'저장하기' 버튼을 누르면 완료됩니다.`);
     }
 
     function saveStudentNames() {
@@ -465,7 +632,7 @@
         const className = document.getElementById('className').value.trim() || "미지정 학급";
 
         if (!url) {
-            alert("Google Sheets Web App URL을 입력해 주세요.");
+            alert("Google Sheets 연동 URL(Apps Script URL)을 입력해 주세요.");
             return;
         }
 
@@ -497,6 +664,15 @@
         } catch (error) {
             alert("전송 중 오류가 발생했습니다: " + error.message);
         }
+    }
+
+    function openGoogleSheet() {
+        const url = document.getElementById('sheetDocUrl').value.trim();
+        if (!url) {
+            alert("구글 시트 문서 주소(URL)를 입력해 주세요.\n(예: https://docs.google.com/spreadsheets/d/...)");
+            return;
+        }
+        window.open(url, '_blank');
     }
 
     // PWA Service Worker 및 설치 프롬프트 등록
@@ -531,9 +707,8 @@
         navigator.serviceWorker.register(URL.createObjectURL(blobSW)).catch(err => console.log(err));
     }
 
-    // 초기 실행
+    // 앱 시작 시 구글 시트 자동 동기화 실행
     loadSavedSettings();
-    renderGrid();
 </script>
 
 </body>
