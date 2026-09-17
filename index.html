@@ -15,6 +15,9 @@
     <!-- Inline Data-URI Web Manifest -->
     <link rel="manifest" href='data:application/manifest+json,{"name":"학생 출석 체크 시스템","short_name":"출석체크","start_url":".","display":"standalone","background_color":"%23f8fafc","theme_color":"%232563eb","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/%3E%3Ctext x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22%3E📋%3C/text%3E%3C/svg%3E","sizes":"192x192 512x512","type":"image/svg+xml"}]}'>
 
+    <!-- SheetJS (엑셀 파일 읽기 라이브러리) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
         :root {
             --primary-color: #2563eb;
@@ -198,8 +201,8 @@
             padding: 24px;
             border-radius: 16px;
             width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
+            max-width: 650px;
+            max-height: 85vh;
             overflow-y: auto;
         }
 
@@ -208,6 +211,19 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
+        }
+
+        .import-box {
+            background-color: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+
+        .import-box h4 {
+            margin: 0 0 8px 0;
+            color: #334155;
         }
 
         .modal-grid {
@@ -280,7 +296,27 @@
             <h2 style="margin:0; font-size:1.3rem;">👤 학생 이름 매핑 등록</h2>
             <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
-        <p style="font-size:0.85rem; color:#64748b; margin-top:0;">번호별 학생 이름을 입력해 주세요. (18번 제외)</p>
+
+        <!-- 엑셀 및 붙여넣기 일괄 등록 구역 -->
+        <div class="import-box">
+            <h4>📊 엑셀/스프레드시트 명단 일괄 불러오기</h4>
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px;">
+                <label for="excelFile" style="font-weight:600; cursor:pointer; color:#2563eb;">📂 엑셀 파일 선택 (.xlsx, .csv):</label>
+                <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="importFromExcelFile(event)">
+            </div>
+            
+            <details style="margin-top:6px;">
+                <summary style="cursor:pointer; font-weight:600; color:#475569;">📋 엑셀 내용 직접 복사/붙여넣기 방법</summary>
+                <p style="margin:6px 0; color:#64748b; font-size:0.8rem;">엑셀에서 번호(1열)와 이름(2열)을 복사해서 아래에 붙여넣으세요.</p>
+                <textarea id="pasteArea" rows="3" style="width:100%; box-sizing:border-box; padding:6px; font-size:0.8rem;" placeholder="예시:
+1 홍길동
+2 김철수
+3 이영희"></textarea>
+                <button class="btn btn-manage" style="margin-top:6px; padding:6px 10px; font-size:0.8rem;" onclick="importFromPasteText()">텍스트 적용하기</button>
+            </details>
+        </div>
+
+        <p style="font-size:0.85rem; color:#64748b; margin-top:0;">번호별 학생 이름을 직접 수정할 수도 있습니다. (18번 제외)</p>
         
         <div class="modal-grid" id="modalInputGrid"></div>
 
@@ -435,6 +471,11 @@
     }
 
     function openModal() {
+        populateModalGrid();
+        document.getElementById('nameModal').style.display = 'flex';
+    }
+
+    function populateModalGrid() {
         const container = document.getElementById('modalInputGrid');
         container.innerHTML = '';
         
@@ -447,12 +488,73 @@
             `;
             container.appendChild(div);
         });
-
-        document.getElementById('nameModal').style.display = 'flex';
     }
 
     function closeModal() {
         document.getElementById('nameModal').style.display = 'none';
+    }
+
+    // 1) 엑셀 파일 읽기 처리
+    function importFromExcelFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                let count = 0;
+                rows.forEach(row => {
+                    if (row && row.length >= 2) {
+                        const num = parseInt(row[0], 10);
+                        const name = String(row[1]).trim();
+                        if (!isNaN(num) && students.includes(num) && name) {
+                            studentNames[num] = name;
+                            count++;
+                        }
+                    }
+                });
+
+                populateModalGrid();
+                alert(`${count}명의 학생 이름이 성공적으로 불러와졌습니다!\n'저장하기' 버튼을 눌러 적용하세요.`);
+            } catch (err) {
+                alert("엑셀 파일을 읽는 중 오류가 발생했습니다: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // 2) 텍스트 복사/붙여넣기 처리
+    function importFromPasteText() {
+        const text = document.getElementById('pasteArea').value.trim();
+        if (!text) {
+            alert("붙여넣은 텍스트가 없습니다.");
+            return;
+        }
+
+        const lines = text.split('\n');
+        let count = 0;
+
+        lines.forEach(line => {
+            // 탭(\t), 쉼표(,), 공백 등으로 구분
+            const parts = line.split(/[\t,]+/).map(s => s.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+                const num = parseInt(parts[0], 10);
+                const name = parts[1];
+                if (!isNaN(num) && students.includes(num) && name) {
+                    studentNames[num] = name;
+                    count++;
+                }
+            }
+        });
+
+        populateModalGrid();
+        alert(`${count}명의 학생 명단이 적용되었습니다!\n'저장하기' 버튼을 눌러 완료하세요.`);
     }
 
     function saveStudentNames() {
@@ -517,7 +619,6 @@
         }
     }
 
-    // Google Sheet 바로가기 웹페이지 열기
     function openGoogleSheet() {
         const url = document.getElementById('sheetDocUrl').value.trim();
         if (!url) {
