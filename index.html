@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232563eb'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='60'%3E📋%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href='data:application/manifest+json,{"name":"학생 출석 체크 시스템","short_name":"출석체크","start_url":".","display":"standalone","background_color":"%23f8fafc","theme_color":"%232563eb","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/%3E%3Ctext x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22%3E📋%3C/text%3E%3C/svg%3E","sizes":"192x192 512x512","type":"image/svg+xml"}]}'>
 
-    <!-- SheetJS -->
+    <!-- SheetJS (엑셀 파일 읽기 라이브러리) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
@@ -80,10 +80,15 @@
 
         .btn-install { background-color: #0284c7; color: white; display: none; }
         .btn-manage { background-color: #4f46e5; color: white; }
+        .btn-manage:hover { background-color: #4338ca; }
         .btn-sheets { background-color: #16a34a; color: white; }
+        .btn-sheets:hover { background-color: #15803d; }
         .btn-view-sheet { background-color: #0891b2; color: white; }
+        .btn-view-sheet:hover { background-color: #0e7490; }
         .btn-sync { background-color: #d97706; color: white; }
+        .btn-sync:hover { background-color: #b45309; }
         .btn-reset { background-color: #64748b; color: white; }
+        .btn-reset:hover { background-color: #475569; }
 
         .grid-container {
             display: grid;
@@ -100,6 +105,7 @@
             cursor: pointer;
             user-select: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
         }
 
         .student-card:active { transform: scale(0.96); }
@@ -112,6 +118,7 @@
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto 6px auto;
             font-weight: 700; font-size: 1.2rem;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
 
         .student-name {
@@ -165,7 +172,7 @@
 
         <div class="setting-group">
             <label for="tabName">🏷️ 탭 이름:</label>
-            <input type="text" id="tabName" placeholder="예: 명단1 (기본: 첫 탭)">
+            <input type="text" id="tabName" placeholder="예: 3학년1반">
         </div>
 
         <div class="setting-group">
@@ -234,7 +241,8 @@
 </div>
 
 <script>
-    const students =;
+    // 1번부터 20번까지 (18번 제외) 명확한 배열 데이터 지정
+    const students = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20];
     const attendanceState = {};
     let studentNames = {};
 
@@ -279,7 +287,6 @@
         }
     }
 
-    // 구글 시트의 지정된 탭에서 명단 읽어오기
     async function syncFromGoogleSheets(isManual = false) {
         const url = document.getElementById('sheetUrl').value.trim();
         const tabName = document.getElementById('tabName').value.trim();
@@ -289,7 +296,6 @@
             return;
         }
 
-        // URL에 tab 파라미터 추가
         const fetchUrl = tabName ? `${url}?tab=${encodeURIComponent(tabName)}` : url;
 
         try {
@@ -321,6 +327,7 @@
     }
 
     function renderGrid() {
+        if (!gridEl) return;
         gridEl.innerHTML = '';
         students.forEach(id => {
             const state = attendanceState[id];
@@ -445,7 +452,7 @@
     }
 
     function importFromExcelFile(event) {
-        const file = event.target.files;
+        const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
@@ -453,15 +460,15 @@
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames;
+                const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                 let count = 0;
                 rows.forEach(row => {
                     if (row && row.length >= 2) {
-                        const num = parseInt(row, 10);
-                        const name = String(row).trim();
+                        const num = parseInt(row[0], 10);
+                        const name = String(row[1] || "").trim();
                         if (!isNaN(num) && students.includes(num) && name) {
                             studentNames[num] = name;
                             count++;
@@ -488,8 +495,8 @@
         lines.forEach(line => {
             const parts = line.split(/[\t,]+/).map(s => s.trim()).filter(Boolean);
             if (parts.length >= 2) {
-                const num = parseInt(parts, 10);
-                const name = parts;
+                const num = parseInt(parts[0], 10);
+                const name = parts[1];
                 if (!isNaN(num) && students.includes(num) && name) {
                     studentNames[num] = name;
                     count++;
@@ -600,7 +607,9 @@
         navigator.serviceWorker.register(URL.createObjectURL(blobSW)).catch(err => console.log(err));
     }
 
-    loadSavedSettings();
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSavedSettings();
+    });
 </script>
 
 </body>
