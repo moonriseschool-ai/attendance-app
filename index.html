@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>학생 출석 체크 시스템</title>
+
+    <!-- PWA 설정 (Web Manifest & App Icons) -->
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="출석체크">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232563eb'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='60'%3E📋%3C/text%3E%3C/svg%3E">
+    
+    <!-- Inline Data-URI Web Manifest -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"학생 출석 체크 시스템","short_name":"출석체크","start_url":".","display":"standalone","background_color":"%23f8fafc","theme_color":"%232563eb","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/%3E%3Ctext x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22%3E📋%3C/text%3E%3C/svg%3E","sizes":"192x192 512x512","type":"image/svg+xml"}]}'>
+
     <style>
         :root {
             --primary-color: #2563eb;
@@ -17,7 +28,7 @@
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-color);
             margin: 0;
-            padding: 24px;
+            padding: 20px;
             color: #1e293b;
         }
 
@@ -84,6 +95,9 @@
             transition: all 0.2s ease;
             font-size: 0.9rem;
         }
+
+        .btn-install { background-color: #0284c7; color: white; display: none; }
+        .btn-install:hover { background-color: #0369a1; }
 
         .btn-manage { background-color: #4f46e5; color: white; }
         .btn-manage:hover { background-color: #4338ca; }
@@ -154,19 +168,18 @@
             min-height: 1.2em;
         }
 
-        /* 1) 정상 출석 상태 */
+        /* 출석 / 지각 상태 */
         .student-card.present { border-color: #2563eb; background-color: #eff6ff; }
         .student-card.present .student-icon { background-color: #2563eb; color: white; }
         .student-card.present .status-label { color: #2563eb; }
         .student-card.present .time-display { color: #1d4ed8; }
 
-        /* 2) 지각 상태 (붉은색 지정) */
         .student-card.late { border-color: #ef4444; background-color: #fef2f2; }
         .student-card.late .student-icon { background-color: #ef4444; color: white; }
         .student-card.late .status-label { color: #dc2626; }
         .student-card.late .time-display { color: #b91c1c; }
 
-        /* 명단 관리 모달 */
+        /* 모달 스타일 */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -241,13 +254,13 @@
         </div>
 
         <div class="button-group">
+            <button class="btn btn-install" id="pwaInstallBtn" onclick="installPWA()">📲 앱 설치하기</button>
             <button class="btn btn-manage" onclick="openModal()">👤 명단 관리</button>
             <button class="btn btn-sheets" onclick="sendToGoogleSheets()">Sheets 전송</button>
             <button class="btn btn-reset" onclick="resetAll()">초기화</button>
         </div>
     </div>
 
-    <!-- 학생 카드 그리드 -->
     <div class="grid-container" id="studentGrid"></div>
 </div>
 
@@ -296,7 +309,6 @@
         if (savedNames) {
             studentNames = JSON.parse(savedNames);
         } else {
-            // 기본값 설정 (학생 1, 학생 2 ...)
             students.forEach(id => { studentNames[id] = `학생 ${id}`; });
         }
     }
@@ -308,7 +320,6 @@
 
     const gridEl = document.getElementById('studentGrid');
 
-    // 화면 렌더링 함수
     function renderGrid() {
         gridEl.innerHTML = '';
         students.forEach(id => {
@@ -334,7 +345,6 @@
         });
     }
 
-    // 출석 체크 및 토글, 지각 처리
     function toggleAttendance(id) {
         const state = attendanceState[id];
         
@@ -370,7 +380,7 @@
         renderGrid();
     }
 
-    // 동적 지정 시간 변경 감지 이벤트
+    // 지정 시간 실시간 변경 감지 및 재계산
     document.getElementById('cutoffTime').addEventListener('change', function() {
         const cutoffVal = this.value;
         localStorage.setItem('cutoffTime', cutoffVal);
@@ -391,7 +401,6 @@
         renderGrid();
     });
 
-    // 학급 이름 입력 시 자동 저장 및 제목 반영
     document.getElementById('className').addEventListener('input', function() {
         const val = this.value.trim();
         localStorage.setItem('className', val);
@@ -407,7 +416,6 @@
         el.textContent = className ? `${className} 출석 현황 (1번~20번, 18번 제외)` : '학급 미지정 (1번~20번, 18번 제외)';
     }
 
-    // 명단 관리 모달 열기/닫기
     function openModal() {
         const container = document.getElementById('modalInputGrid');
         container.innerHTML = '';
@@ -438,10 +446,9 @@
         localStorage.setItem('studentNames', JSON.stringify(studentNames));
         closeModal();
         renderGrid();
-        alert("학생 명단이 성공적으로 저장되었습니다!");
+        alert("학생 명단이 저장되었습니다!");
     }
 
-    // 초기화 버튼 및 경고 창
     function resetAll() {
         const confirmed = confirm("초기화 하겠습니까?");
         if (confirmed) {
@@ -453,7 +460,6 @@
         }
     }
 
-    // Google Sheets 데이터 전송
     async function sendToGoogleSheets() {
         const url = document.getElementById('sheetUrl').value.trim();
         const className = document.getElementById('className').value.trim() || "미지정 학급";
@@ -491,6 +497,38 @@
         } catch (error) {
             alert("전송 중 오류가 발생했습니다: " + error.message);
         }
+    }
+
+    // PWA Service Worker 및 설치 프롬프트 등록
+    let deferredPrompt;
+    const installBtn = document.getElementById('pwaInstallBtn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.style.display = 'inline-block';
+    });
+
+    function installPWA() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            });
+        }
+    }
+
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            self.addEventListener('install', (e) => self.skipWaiting());
+            self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
+            self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+        `;
+        const blobSW = new Blob([swCode], { type: 'text/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blobSW)).catch(err => console.log(err));
     }
 
     // 초기 실행
