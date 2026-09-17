@@ -5,20 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>학생 출석 체크 시스템</title>
 
-    <!-- PWA 설정 -->
+    <!-- PWA 설정 (Web Manifest & App Icons) -->
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="출석체크">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232563eb'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='60'%3E📋%3C/text%3E%3C/svg%3E">
+    
+    <!-- Inline Data-URI Web Manifest -->
     <link rel="manifest" href='data:application/manifest+json,{"name":"학생 출석 체크 시스템","short_name":"출석체크","start_url":".","display":"standalone","background_color":"%23f8fafc","theme_color":"%232563eb","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232563eb%22/%3E%3Ctext x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22%3E📋%3C/text%3E%3C/svg%3E","sizes":"192x192 512x512","type":"image/svg+xml"}]}'>
 
-    <!-- SheetJS -->
+    <!-- SheetJS (엑셀 파일 읽기 라이브러리) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
         :root {
             --primary-color: #2563eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
             --bg-color: #f8fafc;
             --card-bg: #ffffff;
         }
@@ -31,10 +35,23 @@
             color: #1e293b;
         }
 
-        .container { max-width: 1000px; margin: 0 auto; }
-        header { text-align: center; margin-bottom: 20px; }
-        header h1 { font-size: 1.8rem; margin-bottom: 6px; color: #0f172a; }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
 
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 6px;
+            color: #0f172a;
+        }
+
+        /* 컨트롤 패널 */
         .control-panel {
             background: var(--card-bg);
             padding: 20px;
@@ -43,7 +60,7 @@
             margin-bottom: 20px;
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 14px;
             align-items: center;
             justify-content: space-between;
         }
@@ -51,40 +68,56 @@
         .setting-group {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
         }
 
         input[type="text"], input[type="time"], input[type="url"] {
-            padding: 7px 10px;
+            padding: 8px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
         }
 
-        input[type="text"] { width: 100px; }
-        input[type="url"] { width: 160px; }
+        input[type="text"] { width: 110px; }
+        input[type="url"] { width: 180px; }
 
-        .button-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
 
         .btn {
-            padding: 8px 12px;
+            padding: 9px 13px;
             border: none;
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
         }
 
         .btn-install { background-color: #0284c7; color: white; display: none; }
-        .btn-manage { background-color: #4f46e5; color: white; }
-        .btn-sheets { background-color: #16a34a; color: white; }
-        .btn-view-sheet { background-color: #0891b2; color: white; }
-        .btn-sync { background-color: #d97706; color: white; }
-        .btn-reset { background-color: #64748b; color: white; }
+        .btn-install:hover { background-color: #0369a1; }
 
+        .btn-manage { background-color: #4f46e5; color: white; }
+        .btn-manage:hover { background-color: #4338ca; }
+
+        .btn-sheets { background-color: #16a34a; color: white; }
+        .btn-sheets:hover { background-color: #15803d; }
+
+        .btn-view-sheet { background-color: #0891b2; color: white; }
+        .btn-view-sheet:hover { background-color: #0e7490; }
+
+        .btn-sync { background-color: #d97706; color: white; }
+        .btn-sync:hover { background-color: #b45309; }
+
+        .btn-reset { background-color: #64748b; color: white; }
+        .btn-reset:hover { background-color: #475569; }
+
+        /* 학생 카드 그리드 */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
@@ -99,29 +132,52 @@
             text-align: center;
             cursor: pointer;
             user-select: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
 
         .student-card:active { transform: scale(0.96); }
 
         .student-icon {
-            width: 48px; height: 48px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             background-color: #e2e8f0;
             color: #475569;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             margin: 0 auto 6px auto;
-            font-weight: 700; font-size: 1.2rem;
+            font-weight: 700;
+            font-size: 1.2rem;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
 
         .student-name {
-            font-size: 0.95rem; font-weight: 700; color: #1e293b;
-            margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .status-label { font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 2px; }
-        .time-display { font-size: 0.82rem; font-weight: 700; color: #64748b; min-height: 1.2em; }
+        .status-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
 
+        .time-display {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #64748b;
+            min-height: 1.2em;
+        }
+
+        /* 출석 / 지각 상태 */
         .student-card.present { border-color: #2563eb; background-color: #eff6ff; }
         .student-card.present .student-icon { background-color: #2563eb; color: white; }
         .student-card.present .status-label { color: #2563eb; }
@@ -132,21 +188,67 @@
         .student-card.late .status-label { color: #dc2626; }
         .student-card.late .time-display { color: #b91c1c; }
 
+        /* 모달 스타일 */
         .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
         }
 
         .modal-content {
-            background: white; padding: 24px; border-radius: 16px;
-            width: 90%; max-width: 650px; max-height: 85vh; overflow-y: auto;
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 650px;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .import-box { background-color: #f1f5f9; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 0.85rem; }
-        .modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .name-input-group { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
-        .name-input-group input { padding: 6px 8px; width: 100%; box-sizing: border-box; }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .import-box {
+            background-color: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+
+        .import-box h4 {
+            margin: 0 0 8px 0;
+            color: #334155;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .name-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .name-input-group input {
+            padding: 6px 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -161,11 +263,6 @@
         <div class="setting-group">
             <label for="className">🏫 학급 이름:</label>
             <input type="text" id="className" placeholder="예: 3학년 1반">
-        </div>
-
-        <div class="setting-group">
-            <label for="tabName">🏷️ 탭 이름:</label>
-            <input type="text" id="tabName" placeholder="예: 명단1 (기본: 첫 탭)">
         </div>
 
         <div class="setting-group">
@@ -203,11 +300,12 @@
             <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
 
+        <!-- 일괄 불러오기 구역 -->
         <div class="import-box">
             <h4>📊 학생 명단 일괄 불러오기</h4>
             
             <div style="margin-bottom:12px;">
-                <button class="btn btn-sync" onclick="syncFromGoogleSheets(true)">🔄 지정 탭에서 명단 동기화</button>
+                <button class="btn btn-sync" onclick="syncFromGoogleSheets(true)">🔄 구글 시트에서 최신 명단 동기화</button>
             </div>
 
             <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px;">
@@ -219,12 +317,14 @@
                 <summary style="cursor:pointer; font-weight:600; color:#475569;">📋 엑셀 내용 직접 복사/붙여넣기</summary>
                 <textarea id="pasteArea" rows="3" style="width:100%; box-sizing:border-box; padding:6px; font-size:0.8rem; margin-top:6px;" placeholder="예시:
 1 홍길동
-2 김철수"></textarea>
+2 김철수
+3 이영희"></textarea>
                 <button class="btn btn-manage" style="margin-top:6px; padding:6px 10px; font-size:0.8rem;" onclick="importFromPasteText()">텍스트 적용하기</button>
             </details>
         </div>
 
         <p style="font-size:0.85rem; color:#64748b; margin-top:0;">번호별 학생 이름을 직접 수정할 수도 있습니다. (18번 제외)</p>
+        
         <div class="modal-grid" id="modalInputGrid"></div>
 
         <div style="text-align: right;">
@@ -234,16 +334,19 @@
 </div>
 
 <script>
-    const students =;
+    // 1번부터 20번까지 (18번 제외)
+    const students = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20];
     const attendanceState = {};
     let studentNames = {};
 
+    // 초기 출석 상태 할당
     students.forEach(id => {
         attendanceState[id] = { checked: false, time: null, isLate: false };
     });
 
     const gridEl = document.getElementById('studentGrid');
 
+    // 로컬 스토리지 데이터 불러오기 및 구글 시트 명단 자동 동기화
     async function loadSavedSettings() {
         const savedClassName = localStorage.getItem('className');
         if (savedClassName) {
@@ -251,19 +354,20 @@
             updateHeaderTitle(savedClassName);
         }
 
-        const savedTabName = localStorage.getItem('tabName');
-        if (savedTabName) {
-            document.getElementById('tabName').value = savedTabName;
+        const savedCutoff = localStorage.getItem('cutoffTime');
+        if (savedCutoff) {
+            document.getElementById('cutoffTime').value = savedCutoff;
         }
 
-        const savedCutoff = localStorage.getItem('cutoffTime');
-        if (savedCutoff) document.getElementById('cutoffTime').value = savedCutoff;
-
         const savedUrl = localStorage.getItem('sheetUrl');
-        if (savedUrl) document.getElementById('sheetUrl').value = savedUrl;
+        if (savedUrl) {
+            document.getElementById('sheetUrl').value = savedUrl;
+        }
 
         const savedDocUrl = localStorage.getItem('sheetDocUrl');
-        if (savedDocUrl) document.getElementById('sheetDocUrl').value = savedDocUrl;
+        if (savedDocUrl) {
+            document.getElementById('sheetDocUrl').value = savedDocUrl;
+        }
 
         const savedNames = localStorage.getItem('studentNames');
         if (savedNames) {
@@ -274,26 +378,22 @@
 
         renderGrid();
 
+        // 앱 실행 시 구글 시트 URL이 있으면 배경에서 최신 명단 자동 불러오기
         if (savedUrl) {
             await syncFromGoogleSheets(false);
         }
     }
 
-    // 구글 시트의 지정된 탭에서 명단 읽어오기
+    // 구글 시트 명단 동기화 함수 (isManual = 수동 버튼 클릭 여부)
     async function syncFromGoogleSheets(isManual = false) {
         const url = document.getElementById('sheetUrl').value.trim();
-        const tabName = document.getElementById('tabName').value.trim();
-
         if (!url) {
             if (isManual) alert("상단 '📊 연동 URL' 칸에 Apps Script URL을 먼저 입력해 주세요.");
             return;
         }
 
-        // URL에 tab 파라미터 추가
-        const fetchUrl = tabName ? `${url}?tab=${encodeURIComponent(tabName)}` : url;
-
         try {
-            const response = await fetch(fetchUrl);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (Array.isArray(data) && data.length > 0) {
@@ -310,13 +410,13 @@
                 
                 if (isManual) {
                     populateModalGrid();
-                    alert(`구글 시트[${tabName || '첫번째 탭'}]에서 ${count}명의 명단을 동기화했습니다!`);
+                    alert(`구글 시트에서 ${count}명의 학생 명단을 동기화했습니다!`);
                 }
             } else if (isManual) {
-                alert("해당 탭에서 명단 데이터를 읽을 수 없거나 비어 있습니다.");
+                alert("구글 시트에서 명단 데이터를 읽을 수 없거나 데이터가 비어 있습니다.");
             }
         } catch (error) {
-            if (isManual) alert("명단 동기화 오류: " + error.message);
+            if (isManual) alert("명단 동기화 중 오류가 발생했습니다: " + error.message);
         }
     }
 
@@ -362,7 +462,10 @@
                 const [cHours, cMinutes] = cutoffVal.split(':').map(Number);
                 const currentSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
                 const cutoffSec = cHours * 3600 + cMinutes * 60;
-                if (currentSec > cutoffSec) isLate = true;
+                
+                if (currentSec > cutoffSec) {
+                    isLate = true;
+                }
             }
 
             state.checked = true;
@@ -377,6 +480,7 @@
         renderGrid();
     }
 
+    // 지정 시간 실시간 변경 감지 및 재계산
     document.getElementById('cutoffTime').addEventListener('change', function() {
         const cutoffVal = this.value;
         localStorage.setItem('cutoffTime', cutoffVal);
@@ -401,10 +505,6 @@
         const val = this.value.trim();
         localStorage.setItem('className', val);
         updateHeaderTitle(val);
-    });
-
-    document.getElementById('tabName').addEventListener('input', function() {
-        localStorage.setItem('tabName', this.value.trim());
     });
 
     document.getElementById('sheetUrl').addEventListener('input', function() {
@@ -445,7 +545,7 @@
     }
 
     function importFromExcelFile(event) {
-        const file = event.target.files;
+        const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
@@ -453,15 +553,15 @@
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames;
+                const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                 let count = 0;
                 rows.forEach(row => {
                     if (row && row.length >= 2) {
-                        const num = parseInt(row, 10);
-                        const name = String(row).trim();
+                        const num = parseInt(row[0], 10);
+                        const name = String(row[1]).trim();
                         if (!isNaN(num) && students.includes(num) && name) {
                             studentNames[num] = name;
                             count++;
@@ -470,9 +570,9 @@
                 });
 
                 populateModalGrid();
-                alert(`${count}명의 학생 이름이 엑셀에서 불러와졌습니다!`);
+                alert(`${count}명의 학생 이름이 엑셀에서 불러와졌습니다!\n'저장하기' 버튼을 누르면 적용됩니다.`);
             } catch (err) {
-                alert("엑셀 읽기 오류: " + err.message);
+                alert("엑셀 파일을 읽는 중 오류가 발생했습니다: " + err.message);
             }
         };
         reader.readAsArrayBuffer(file);
@@ -480,7 +580,10 @@
 
     function importFromPasteText() {
         const text = document.getElementById('pasteArea').value.trim();
-        if (!text) return alert("붙여넣은 텍스트가 없습니다.");
+        if (!text) {
+            alert("붙여넣은 텍스트가 없습니다.");
+            return;
+        }
 
         const lines = text.split('\n');
         let count = 0;
@@ -488,8 +591,8 @@
         lines.forEach(line => {
             const parts = line.split(/[\t,]+/).map(s => s.trim()).filter(Boolean);
             if (parts.length >= 2) {
-                const num = parseInt(parts, 10);
-                const name = parts;
+                const num = parseInt(parts[0], 10);
+                const name = parts[1];
                 if (!isNaN(num) && students.includes(num) && name) {
                     studentNames[num] = name;
                     count++;
@@ -498,7 +601,7 @@
         });
 
         populateModalGrid();
-        alert(`${count}명의 명단이 적용되었습니다!`);
+        alert(`${count}명의 학생 명단이 적용되었습니다!\n'저장하기' 버튼을 누르면 완료됩니다.`);
     }
 
     function saveStudentNames() {
@@ -527,7 +630,6 @@
     async function sendToGoogleSheets() {
         const url = document.getElementById('sheetUrl').value.trim();
         const className = document.getElementById('className').value.trim() || "미지정 학급";
-        const tabName = document.getElementById('tabName').value.trim();
 
         if (!url) {
             alert("Google Sheets 연동 URL(Apps Script URL)을 입력해 주세요.");
@@ -536,7 +638,6 @@
 
         const payload = {
             className: className,
-            tabName: tabName,
             records: students.map(id => {
                 const st = attendanceState[id];
                 let status = "미출석";
@@ -559,18 +660,22 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            alert(`[${className}] 출석 현황을 Google Sheets[${tabName || '기본 탭'}]로 전송했습니다!`);
+            alert(`[${className}] 출석 현황을 Google Sheets로 전송했습니다!`);
         } catch (error) {
-            alert("전송 중 오류 발생: " + error.message);
+            alert("전송 중 오류가 발생했습니다: " + error.message);
         }
     }
 
     function openGoogleSheet() {
         const url = document.getElementById('sheetDocUrl').value.trim();
-        if (!url) return alert("구글 시트 문서 주소(URL)를 입력해 주세요.");
+        if (!url) {
+            alert("구글 시트 문서 주소(URL)를 입력해 주세요.\n(예: https://docs.google.com/spreadsheets/d/...)");
+            return;
+        }
         window.open(url, '_blank');
     }
 
+    // PWA Service Worker 및 설치 프롬프트 등록
     let deferredPrompt;
     const installBtn = document.getElementById('pwaInstallBtn');
 
@@ -584,7 +689,9 @@
         if (deferredPrompt) {
             deferredPrompt.prompt();
             deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') installBtn.style.display = 'none';
+                if (choiceResult.outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
                 deferredPrompt = null;
             });
         }
@@ -600,6 +707,7 @@
         navigator.serviceWorker.register(URL.createObjectURL(blobSW)).catch(err => console.log(err));
     }
 
+    // 앱 시작 시 구글 시트 자동 동기화 실행
     loadSavedSettings();
 </script>
 
